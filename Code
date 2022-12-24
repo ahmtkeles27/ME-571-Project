@@ -1,63 +1,63 @@
 clc
 clear
-x=(0:0.005:1)';
-t=(0:0.025:5)';
 
+
+x=(0:0.1:1)';
+t=(0:0.025:5)';
 %Forcing2=Diff(Forcing1,2);
 %ds=arrayDatastore([x,t,Forcing1]);
-ValSize=1000;
-TrainSize=1000;
-TestSize=1000;
-dlX=dlarray(zeros(2,TrainSize,length(t)-2),'CBT');
+ValSize=256;
+TrainSize=1024;
+TestSize=256;
+DLX=dlarray(zeros(2,TrainSize,length(t)),'CBT');
+dlX=zeros(2,length(t)+10,TrainSize);
 for i=1:TrainSize
-    Amp1=rand(1)*0.5;
-    Amp2=rand(1)*0.5;
-    W1=rand(1)*15;
-    W2=rand(1)*15;
-    Phase1=(rand(1)-0.5)*2*pi;
-    Phase2=(rand(1)-0.5)*2*pi;
-    Forcing1=Amp1*sin(W1*t+Phase1);
-    Forcing2=Amp2*sin(W2*t+Phase2);
-    ddForcing1=diff(Forcing1,2)';
-    ddForcing2=diff(Forcing2,2)';
+    Amp1=rand(1)*1;
+    Amp2=rand(1)*1;
+    W1=rand(1)*pi*4;
+    W2=rand(1)*pi*4;
+    ddForcing1=Amp1*sin(W1*t);
+    ddForcing2=Amp2*sin(W2*t);
+    %%ddForcing1=diff(Forcing1,2)'/0.025^2;
+    %%ddForcing2=diff(Forcing2,2)'/0.025^2;
 
-    dlX(1,i,:)=ddForcing1;
-    dlX(2,i,:)=ddForcing2;
+    dlX(1,13:length(t)+12,i)=ddForcing1;
+    dlX(2,13:length(t)+12,i)=ddForcing2;
+
+    DLX(1,i,13:length(t)+12)=ddForcing1;
+    DLX(2,i,13:length(t)+12)=ddForcing2;
 end
-dlX=gpuArray(dlX);
+DLX=gpuArray(DLX);
 
-ValdlX=dlarray(zeros(2,ValSize,length(t)-2),'CBT');
+ValdlX=dlarray(zeros(2,ValSize,length(t)+10),'CBT');
 for i=1:ValSize
-    Amp1=rand(1)*0.5;
-    Amp2=rand(1)*0.5;
-    W1=rand(1)*15;
-    W2=rand(1)*15;
-    Phase1=(rand(1)-0.5)*2*pi;
-    Phase2=(rand(1)-0.5)*2*pi;
-    Forcing1=Amp1*sin(W1*t+Phase1);
-    Forcing2=Amp2*sin(W2*t+Phase2);
-    ddForcing1=diff(Forcing1,2)';
-    ddForcing2=diff(Forcing2,2)';
-    ValdlX(1,i,:)=ddForcing1;
-    ValdlX(2,i,:)=ddForcing2;
+    Amp1=rand(1)*1;
+    Amp2=rand(1)*1;
+    W1=rand(1)*pi*4;
+    W2=rand(1)*pi*4;
+    ddForcing1=Amp1*sin(W1*t);
+    ddForcing2=Amp2*sin(W2*t);
+    %ddForcing1=diff(Forcing1,2)'/0.025^2;
+    %ddForcing2=diff(Forcing2,2)'/0.025^2;
+    ValdlX(1,i,13:length(t)+12)=ddForcing1;
+    ValdlX(2,i,13:length(t)+12)=ddForcing2;
 end
 ValdlX=gpuArray(ValdlX);
-TestdlX=dlarray(zeros(2,TestSize,length(t)-2),'CBT');
+TestdlX=dlarray(zeros(2,TestSize,length(t)+10),'CBT');
 for i=1:TestSize
-    Amp1=rand(1)*0.5;
-    Amp2=rand(1)*0.5;
-    W1=rand(1)*15;
-    W2=rand(1)*15;
-    Phase1=(rand(1)-0.5)*2*pi;
-    Phase2=(rand(1)-0.5)*2*pi;
-    Forcing1=Amp1*sin(W1*t+Phase1);
-    Forcing2=Amp2*sin(W2*t+Phase2);
-    ddForcing1=diff(Forcing1,2)';
-    ddForcing2=diff(Forcing2,2)';
-    TestdlX(1,i,:)=ddForcing1;
-    TestdlX(2,i,:)=ddForcing2;
+    Amp1=rand(1)*1;
+    Amp2=rand(1)*1;
+    W1=rand(1)*pi*4;
+    W2=rand(1)*pi*4;
+    ddForcing1=Amp1*sin(W1*t);
+    ddForcing2=Amp2*sin(W2*t);
+    %ddForcing1=diff(Forcing1,2)'/0.025^2;
+    %ddForcing2=diff(Forcing2,2)'/0.025^2;
+    TestdlX(1,i,13:length(t)+12)=ddForcing1;
+    TestdlX(2,i,13:length(t)+12)=ddForcing2;
 end
 TestdlX=gpuArray(TestdlX);
+dsX = arrayDatastore(dlX,IterationDimension=3);
 
 
 numHiddenUnits1 = 64;
@@ -67,19 +67,24 @@ L2Fac=0.1;
 poolSize=100;
 layers = [ ...
     sequenceInputLayer(2,'Name','InputLayer','Normalization','none')
-    fullyConnectedLayer(32,'Name','fcOut8','WeightsInitializer','he')
-    %reluLayer('Name','rel1')
+    fullyConnectedLayer(32,'Name','fcOut8','WeightsInitializer','glorot')
+    reluLayer('Name','rel1')
     %lstmLayer(32,'Name','LSTM1')
-    fullyConnectedLayer(32,'Name','fcOut1','WeightsInitializer','he')
+    fullyConnectedLayer(32,'Name','fcOut1','WeightsInitializer','glorot')
     reluLayer('Name','rel2')
-    fullyConnectedLayer(64,'Name','fcOut2','WeightsInitializer','he')
+    fullyConnectedLayer(32,'Name','fcOut2','WeightsInitializer','glorot')
     reluLayer('Name','rel3')
-    fullyConnectedLayer(128,'Name','FC3','WeightsInitializer','he')
-    reluLayer('Name','rel4')
-    fullyConnectedLayer(256,'Name','FC4','WeightsInitializer','he')
-    reluLayer('Name','rel5')
+    %lstmLayer(64,'Name','LSTM2')
+    %fullyConnectedLayer(32,'Name','FC3','WeightsInitializer','he')
+    %reluLayer('Name','rel4')
+    %fullyConnectedLayer(32,'Name','FC4','WeightsInitializer','he')
+    %reluLayer('Name','rel5')
+    %fullyConnectedLayer(32,'Name','FC5','WeightsInitializer','he')
+    %reluLayer('Name','rel6')
+    %fullyConnectedLayer(32,'Name','FC6','WeightsInitializer','he')
+    %reluLayer('Name','rel7')
     %lstmLayer(256,'Name','LSTM2','OutputMode','sequence')
-    fullyConnectedLayer(20,'Name','fcOut3','WeightsInitializer','he')
+    fullyConnectedLayer(20,'Name','fcOut3','WeightsInitializer','glorot')
     %convolution1dLayer(15,201,"Name",'Conv','Padding','same','PaddingValue','replicate')
     %reluLayer("Name",'Rel5')
     %convolution1dLayer(15,201,'Name','Conv5','Padding','same','PaddingValue','replicate')
@@ -87,39 +92,43 @@ layers = [ ...
 
 
 % layers = [ ...
-%     sequenceInputLayer(1,'Name','InputLayer')
-%     convolution1dLayer(5,32,'Name','Conv1','Padding','same','PaddingValue','replicate')
+%     sequenceInputLayer(2,'Name','InputLayer')
+%     convolution1dLayer(5,32,'Name','Conv1','Padding','same','PaddingValue',0)
 %     reluLayer("Name",'Rel1')
-%     convolution1dLayer(5,64,'Name','Conv2','Padding','same','PaddingValue','replicate')
+%     convolution1dLayer(5,64,'Name','Conv2','Padding','same','PaddingValue',0)
 %     reluLayer("Name",'Rel2')
-%     convolution1dLayer(5,128,'Name','Conv3','Padding','same','PaddingValue','replicate')
+%     convolution1dLayer(5,128,'Name','Conv3','Padding','same','PaddingValue',0)
 %     reluLayer("Name",'Rel3')
-%     convolution1dLayer(5,256,'Name','Conv4','Padding','same','PaddingValue','replicate')
+%     convolution1dLayer(5,256,'Name','Conv4','Padding','same','PaddingValue',0)
 %     reluLayer("Name",'Rel4')
-%     convolution1dLayer(5,512,'Name','Conv5','Padding','same','PaddingValue','replicate')
+%     convolution1dLayer(5,256,'Name','Conv5','Padding','same','PaddingValue',0)
 %     reluLayer("Name",'Rel5')
-%     convolution1dLayer(5,707,'Name','ConvOut','Padding','same','PaddingValue','replicate')
+%     convolution1dLayer(5,20,'Name','ConvOut','Padding','same','PaddingValue',0)
 %     ];
 
 View the network parameters.
 lgraph = layerGraph(layers);
 Create a dlnetwork object from the layer graph.
-dlnet = dlnetwork(lgraph,dlX)
+dlnet = dlnetwork(lgraph)
 
 figure
 plot(lgraph)
 Specify Training Options
 
 
-numEpochs = 5000;
-miniBatchSize = 2;
+numEpochs = 3500;
+miniBatchSize = 1024;
 
-initialLearnRate = 0.001;
-decay = 0.001;
+initialLearnRate = 0.005;
+decay = 0.0001;
+mbq = minibatchqueue(dsX,...
+    'MiniBatchSize',miniBatchSize,...
+    'MiniBatchFormat',{'CTB'},OutputEnvironment='gpu');
 
 
 Train Model
 Initialize the training progress plot.
+
 figure
 lineLossTrain = animatedline('Color',[0.85 0.325 0.098]);
 lineLossTrain2 = animatedline('Color','b');
@@ -140,15 +149,15 @@ averageSqGrad = [];
 % Loop over epochs.
 for epoch = 1:numEpochs
     % Shuffle data.
-    %shuffle(mbq);
+    shuffle(mbq);
 
     % Loop over mini-batches.
-    %while hasdata(mbq)
+    while hasdata(mbq)
     %for i=1:length(Input)
     % Loop over mini-batches.
 
     iteration = iteration + 1;
-    %         XTBC= next(mbq);
+             X= next(mbq);
     %         X = XTBC(1,:);
     %         T = XTBC(2,:);
     %         BC=XTBC(3,:);
@@ -158,9 +167,9 @@ for epoch = 1:numEpochs
 
     % Evaluate the model gradients, state, and loss using dlfeval and the
     % modelGradients function and update the network state.
-    [gradients,state,loss] = dlfeval(@modelGradients,dlnet,dlX,TestSize);
+    [gradients,state,loss] = dlfeval(@modelGradients,dlnet,X,miniBatchSize);
     dlnet.State = state;
-    if mod(epoch,10)==1
+    if mod(iteration,10)==1
         [~,~,Valloss] = dlfeval(@modelGradients,dlnet,ValdlX,ValSize);
         addpoints(lineLossTrain2,iteration,log10(Valloss)); hold on;drawnow
     end
@@ -182,14 +191,16 @@ for epoch = 1:numEpochs
     D = duration(0,0,toc(start),'Format','hh:mm:ss');
     title("Epoch: " + epoch + ", Elapsed: " + string(D) + ", Loss: " + loss)
 
-    %end
+    end
 end
 
 
 disp('Train Data')
-RND=ceil(rand(1)*(TrainSize-1));
-[Dis] = predict(dlnet,dlX);
-[~,~,Trainloss] = dlfeval(@modelGradients,dlnet,dlX,TrainSize)
+%dlX=gpuArray(dlarray(dlX,'CTB'));
+RND=ceil(rand(1)*(TrainSize));
+[Dis] = predict(dlnet,DLX);
+[~,~,Trainloss] = dlfeval(@modelGradients,dlnet,DLX,TrainSize)
+TrainLOS=LF(dlnet,DLX,TrainSize)
 S=size(Dis);
 v=Dis(1:S(1)/2,:,:);
 w=Dis(S(1)/2+1:S(1),:,:);
@@ -197,110 +208,100 @@ w=Dis(S(1)/2+1:S(1),:,:);
 W=double(gather(extractdata(LinFilter3(LinFilter2(w(:,RND,:))))));
 V=double(gather(extractdata(LinFilter3(LinFilter2(v(:,RND,:))))));
 S=size(W);
-
 figure
-set(gcf,'Visible','on')
-for i=1:S(3)
-    plot3(1*W(:,i),1*V(:,i),0:0.1:0.9,'g','LineWidth',5);
-    box(0,0,0.001);grid minor
-    xlim([-0.002,0.002]);ylim([-0.002,0.002])
-    drawnow;
-
-    title( sprintf('t = %.1f', (i-1)*0.025) )
-    hold all;
-    pause( 0.000000001 );hold off;
-end
+Displacement=(reshape(W,10,S(3)).^2+reshape(V,10,S(3)).^2).^0.5;
+plot(Displacement')
+figure
+plot(reshape(double(gather(extractdata(DLX(1,RND,:)))),1,[])');hold on;
+plot(reshape(double(gather(extractdata(DLX(2,RND,:)))),1,[])','r')
+% figure
+% set(gcf,'Visible','on')
+% for i=1:S(3)
+%     plot3(1*W(:,i),1*V(:,i),0:0.1:0.9,'g','LineWidth',5);
+%     box(0,0,0.001);grid minor
+%     xlim([-0.002,0.002]);ylim([-0.002,0.002])
+%     drawnow;
+% 
+%     title( sprintf('t = %.1f', (i-1)*0.025) )
+%     hold all;
+%     pause( 0.000000001 );hold off;
+% end
 
 disp('Val Data')
+
 RND=ceil(rand(1)*(ValSize-1));
 [Dis] = predict(dlnet,ValdlX);
 [~,~,Valloss] = dlfeval(@modelGradients,dlnet,ValdlX,ValSize)
+VALLLOS=LF(dlnet,ValdlX,ValSize)
 S=size(Dis);
-v=Dis(1:S(1)/2,:,:);
-w=Dis(S(1)/2+1:S(1),:,:);
-%W=LinFilter(LinFilter(W,1),2);
-W=double(gather(extractdata(LinFilter3(LinFilter2(w(:,RND,:))))));
-V=double(gather(extractdata(LinFilter3(LinFilter2(v(:,RND,:))))));
-S=size(W);
+v=Dis(1:S(1)/2,RND,:);
+w=Dis(S(1)/2+1:S(1),RND,:);
 
 figure
-set(gcf,'Visible','on')
-for i=1:S(3)
-    plot3(1*W(:,i),1*V(:,i),0:0.1:0.9,'g','LineWidth',5);
-    box(0,0,0.001);grid minor
-    xlim([-0.002,0.002]);ylim([-0.002,0.002])
-    drawnow;
+plot(0:0.025:5.3,reshape(double(gather(extractdata(ValdlX(1,RND,:)))),1,[])');hold on;
+plot(0:0.025:5.3,reshape(double(gather(extractdata(ValdlX(2,RND,:)))),1,[])','r')
+legend('I','J');xlabel('Time in s');ylabel('Acceleration In m/s^2');
+%W=LinFilter(LinFilter(W,1),2);
+W=double(gather(extractdata(LinFilter3(LinFilter2(w(:,:,:))))));
+V=double(gather(extractdata(LinFilter3(LinFilter2(v(:,:,:))))));
 
-    title( sprintf('t = %.1f', (i-1)*0.025) )
-    hold all;
-    pause( 0.000000001 );hold off;
-end
+S=size(W);
+figure
+Displacement=(reshape(W,10,S(3)).^2+reshape(V,10,S(3)).^2).^0.5;
+plot(0:0.025:5.3,Displacement');hold on;legend('P1','P2','P3','P4','P5','P6','P7','P8','P9','P10')
+xlabel('Time in s');ylabel('Displacement in m');xlim([0 7]);
+% figure
+% set(gcf,'Visible','on')
+% for i=1:S(3)
+%     plot3(1*W(:,i),1*V(:,i),0:0.1:0.9,'g','LineWidth',5);
+%     box(0,0,0.001);grid minor
+%     xlim([-0.002,0.002]);ylim([-0.002,0.002])
+%     drawnow;
+% 
+%     title( sprintf('t = %.1f', (i-1)*0.025) )
+%     hold all;
+%     pause( 0.000000001 );hold off;
+% end
 
 
 disp('Test Data')
 RND=ceil(rand(1)*(TestSize-1));
 [Dis] = predict(dlnet,TestdlX);
-[~,~,Valloss] = dlfeval(@modelGradients,dlnet,TestdlX,TestSize)
+[~,~,Testloss] = dlfeval(@modelGradients,dlnet,TestdlX,TestSize)
+TestLOS=LF(dlnet,TestdlX,TestSize)
 S=size(Dis);
 v=Dis(1:S(1)/2,:,:);
 w=Dis(S(1)/2+1:S(1),:,:);
+
 %W=LinFilter(LinFilter(W,1),2);
 W=double(gather(extractdata(LinFilter3(LinFilter2(w(:,RND,:))))));
 V=double(gather(extractdata(LinFilter3(LinFilter2(v(:,RND,:))))));
 S=size(W);
-
 figure
-set(gcf,'Visible','on')
-for i=1:S(3)
-    plot3(1*W(:,i),1*V(:,i),0:0.1:0.9,'g','LineWidth',5);
-    box(0,0,0.001);grid minor
-    xlim([-0.002,0.002]);ylim([-0.002,0.002])
-    drawnow;
+plot(reshape(W,10,S(3))')
+% figure
+% set(gcf,'Visible','on')
+% for i=1:S(3)
+%     plot3(1*W(:,i),1*V(:,i),0:0.1:0.9,'g','LineWidth',5);
+%     box(0,0,0.001);grid minor
+%     xlim([-0.002,0.002]);ylim([-0.002,0.002])
+%     drawnow;
+% 
+%     title( sprintf('t = %.1f', (i-1)*0.025) )
+%     hold all;
+%     pause( 0.000000001 );hold off;
+% end
 
-    title( sprintf('t = %.1f', (i-1)*0.025) )
-    hold all;
-    pause( 0.000000001 );hold off;
-end
 
 
-function box(ax,ay,w)
-% Center point is at coordinate [ax ay az].
-%ax = 0;  ay = 0;
-
-% Full-width of each side of cube.
-%w = 0.01;
-
-% For readability.
-h = w;
-az = -h;
-patch_args = { 'FaceColor', 'b', 'FaceAlpha', 1 };
-
-% Side #1 of 6.
-patch( 'XData', ax+[-h -h  h  h], 'YData', ay+[-h  h  h -h], 'ZData', az+[-h -h -h -h], patch_args{:} )
-%daspect( [1 1 1] )  % 1:1:1 aspect ratio.
-%hold on
-% Side #2 of 6.
-patch( 'XData', ax+[-h -h  h  h], 'YData', ay+[-h  h  h -h], 'ZData', az+[ h  h  h  h], patch_args{:} )
-% Side #3 of 6.
-patch( 'XData', ax+[-h -h  h  h], 'YData', ay+[ h  h  h  h], 'ZData', az+[-h  h  h -h], patch_args{:} )
-% Side #4 of 6.
-patch( 'XData', ax+[-h -h  h  h], 'YData', ay+[-h -h -h -h], 'ZData', az+[-h  h  h -h], patch_args{:} )
-% Side #5 of 6.
-patch( 'XData', ax+[ h  h  h  h], 'YData', ay+[-h -h  h  h], 'ZData', az+[-h  h  h -h], patch_args{:} )
-% Side #6 of 6.
-patch( 'XData', ax+[-h -h -h -h], 'YData', ay+[-h -h  h  h], 'ZData', az+[-h  h  h -h], patch_args{:} )
-
-% Red dot in middle.
-%scatter3( ax, ay, az, 'or', 'filled', 'SizeData', 150 )
-
-%hold off
-end
 
 
 
 Model Gradients Function
 The modelGradients function takes a dlnetwork object dlnet, a mini-batch of input data dlX with corresponding labels Y and returns the gradients of the loss with respect to the learnable parameters in dlnet, the network state, and the loss. To compute the gradients automatically, use the dlgradient function.
 function [gradients,state,loss] = modelGradients(dlnet,dlX,NumData)
+Tstep=0.025;
+Sstep=0.1;
 [Dis,state] = forward(dlnet,dlX);
 S=size(Dis);
 v=Dis(1:S(1)/2,:,:);
@@ -315,64 +316,158 @@ A=b*h;
 I=b*h^3;
 rho=1;
 E=0.621*10^6;
-Wx= (Diff(W,1));
-Wt= (Diff(W,2));
-Wtt= (Diff(Wt,2));
-Wttx= (Diff(Wtt,1));
-Wttxx= (Diff(Wttx,1));
-Wxx= (Diff(Wx,1));
-Wxxx= (Diff(Wxx,1));
-Wxxxx= (Diff(Wxxx,1));
+Wx= (NDiff(W,1,Sstep));
+Wt= (NDiff(W,2,Tstep));
+Wtt= (NDiff(Wt,2,Tstep));
+Wttx= (NDiff(Wtt,1,Sstep));
+Wttxx= (NDiff(Wttx,1,Sstep));
+Wxx= (NDiff(Wx,1,Sstep));
+Wxxx= (NDiff(Wxx,1,Sstep));
+Wxxxx= (NDiff(Wxxx,1,Sstep));
 
-Vx= (Diff(V,1));
-Vt= (Diff(V,2));
-Vtt= (Diff(Vt,2));
-Vttx= (Diff(Vtt,1));
-Vttxx= (Diff(Vttx,1));
-Vxx= (Diff(Vx,1));
-Vxxx= (Diff(Vxx,1));
-Vxxxx= (Diff(Vxxx,1));
+Vx= (NDiff(V,1,Sstep));
+Vt= (NDiff(V,2,Tstep));
+Vtt= (NDiff(Vt,2,Tstep));
+Vttx= (NDiff(Vtt,1,Sstep));
+Vttxx= (NDiff(Vttx,1,Sstep));
+Vxx= (NDiff(Vx,1,Sstep));
+Vxxx= (NDiff(Vxx,1,Sstep));
+Vxxxx= (NDiff(Vxxx,1,Sstep));
 
 R1=rho*A*dlX(1,:,:)+rho*A*Wtt+E*I*Vxxxx+I*E*Wxxxx-rho*I*(Vttxx+Wttxx);
 R2=rho*A*dlX(2,:,:)+rho*A*Vtt+E*I*Vxxxx+I*E*Wxxxx-rho*I*(Vttxx+Wttxx);
-BC1=1000*sum(W(1,:,:).^2,'all')/NumData;
-BC2=10*sum(Wx(1,:,:).^2,'all')/NumData;
-BC3=10^-3*sum(Wxx(S(1),:,:).^2,'all')/NumData;
-BC4=10^-5*sum(Wxxx(S(1),:,:).^2,'all')/NumData;
+BC1=sum(W(1,:,:).^2,'all')/NumData;
+BC2=sum(Wx(1,:,:).^2,'all')/NumData;
+BC3=sum(Wxx(S(1),:,:).^2,'all')/NumData;
+BC4=sum(Wxxx(S(1),:,:).^2,'all')/NumData;
 
-BC5=1000*sum(V(1,:,:).^2,'all')/NumData;
-BC6=10*sum(Vx(1,:,:).^2,'all')/NumData;
-BC7=10^-3*sum(Vxx(S(1),:,:).^2,'all')/NumData;
-BC8=10^-5*sum(Vxxx(S(1),:,:).^2,'all')/NumData;
+BC5=sum(V(1,:,:).^2,'all')/NumData;
+BC6=sum(Vx(1,:,:).^2,'all')/NumData;
+BC7=sum(Vxx(S(1),:,:).^2,'all')/NumData;
+BC8=sum(Vxxx(S(1),:,:).^2,'all')/NumData;
 zeroTarget = zeros(size(R1), 'like', R1);
 L1=mse(R1,zeroTarget);
 L2=mse(R2,zeroTarget);
-IC1=10000*sum(W(:,:,1).^2+V(:,:,1).^2,'all')/NumData;
-IC2=10*sum(Wt(:,:,1).^2+Vt(:,:,1).^2,'all')/NumData;
+IC1=sum(W(:,:,1).^2+V(:,:,1).^2,'all')/NumData;
+IC2=sum(Wt(:,:,1).^2+Vt(:,:,1).^2,'all')/NumData;
 loss=L1+L2+BC1+BC2+BC3+BC4+BC5+BC6+BC7+BC8+IC1+IC2;
+Tloss=L1+L2+BC1*1000+BC2*10+BC3/10^3+BC4/10^5+BC5*1000+BC6*10+BC7/10^3+BC8/10^5+IC1*10000+IC2*10;
 gradients = dlgradient(loss,dlnet.Learnables);
 
-Tloss=L1+L2+BC1/1000+BC2/10+BC3*10^3+BC4*10^5+BC5/1000+BC6/10+BC7*10^3+BC8*10^5+IC1/10000+IC2/10;
-loss = double(gather(extractdata(Tloss)));
+
+loss = double(gather(extractdata(loss)));
 
 end
 
 
+function LOSS=LF(dlnet,dlX,NumData)
+Tstep=0.025;
+Sstep=0.1;
+[Dis,state] = forward(dlnet,dlX);
+S=size(Dis);
+v=Dis(1:S(1)/2,:,:);
+w=Dis(S(1)/2+1:S(1),:,:);
+W=LinFilter3(LinFilter2(w));
+V=LinFilter3(LinFilter2(v));
+S=size(W);
+
+h=0.005;
+b=0.005;
+A=b*h;
+I=b*h^3;
+rho=1;
+E=0.621*10^6;
+Wx= (NDiff(W,1,Sstep));
+Wt= (NDiff(W,2,Tstep));
+Wtt= (NDiff(Wt,2,Tstep));
+Wttx= (NDiff(Wtt,1,Sstep));
+Wttxx= (NDiff(Wttx,1,Sstep));
+Wxx= (NDiff(Wx,1,Sstep));
+Wxxx= (NDiff(Wxx,1,Sstep));
+Wxxxx= (NDiff(Wxxx,1,Sstep));
+
+Vx= (NDiff(V,1,Sstep));
+Vt= (NDiff(V,2,Tstep));
+Vtt= (NDiff(Vt,2,Tstep));
+Vttx= (NDiff(Vtt,1,Sstep));
+Vttxx= (NDiff(Vttx,1,Sstep));
+Vxx= (NDiff(Vx,1,Sstep));
+Vxxx= (NDiff(Vxx,1,Sstep));
+Vxxxx= (NDiff(Vxxx,1,Sstep));
+
+R1=rho*A*dlX(1,:,:)+rho*A*Wtt+E*I*Vxxxx+I*E*Wxxxx-rho*I*(Vttxx+Wttxx);
+R2=rho*A*dlX(2,:,:)+rho*A*Vtt+E*I*Vxxxx+I*E*Wxxxx-rho*I*(Vttxx+Wttxx);
+BC1=sum(W(1,:,:).^2,'all')/NumData;
+BC2=sum(Wx(1,:,:).^2,'all')/NumData;
+BC3=sum(Wxx(S(1),:,:).^2,'all')/NumData;
+BC4=sum(Wxxx(S(1),:,:).^2,'all')/NumData;
+
+BC5=sum(V(1,:,:).^2,'all')/NumData;
+BC6=sum(Vx(1,:,:).^2,'all')/NumData;
+BC7=sum(Vxx(S(1),:,:).^2,'all')/NumData;
+BC8=sum(Vxxx(S(1),:,:).^2,'all')/NumData;
+zeroTarget = zeros(size(R1), 'like', R1);
+L1=mse(R1,zeroTarget);
+L2=mse(R2,zeroTarget);
+IC1=sum(W(:,:,1).^2+V(:,:,1).^2,'all')/NumData;
+IC2=sum(Wt(:,:,1).^2+Vt(:,:,1).^2,'all')/NumData;
+LOSS=[L1,L2,BC1+BC2+BC3,BC4+BC5+BC5,IC1,IC2];
+end
 
 
 
-
-function dx=Diff(X,dim)
+function dx=Diff(X,dim,Step)
 S=size(X);
 if dim==1
-
     X2=zeros(size(X),'like',X);
+    X3=zeros(size(X),'like',X);
     X2(2:S(1),:,:)=X(1:S(1)-1,:,:);
-    dx=(X-X2)/0.1;
+    X2(1,:,:)=X(1,:,:);
+    X3(1:S(1)-1,:,:)=X(2:S(1),:,:);
+    X3(S(1),:,:)=X(S(1),:,:);
+    dx=(X3-X2)/ Step/2;
+    %dx(1,:,:)=(X3(1,:,:)-X(1,:,:))/Step;
+    %dx(S(1),:,:)=(X(S(1),:,:)-X2(S(1),:,:))/Step;
+else
+X2=zeros(size(X),'like',X);
+    X3=zeros(size(X),'like',X);
+    X2(:,:,2:S(1))=X(:,:,1:S(1)-1);
+    X2(:,:,1)=X(:,:,1);
+    X3(:,:,1:S(1)-1)=X(:,:,2:S(1));
+    X3(:,:,S(1))=X(:,:,S(1));
+    dx=(X3-X2)/ Step/2;
+
+end
+end
+
+function dx=NDiff(X,dim,Step)
+S=size(X);
+if dim==1
+    X2=zeros(size(X),'like',X);
+    X3=zeros(size(X),'like',X);
+    X2(2:S(1),:,:)=X(1:S(1)-1,:,:);
+    X2(1,:,:)=X(1,:,:);
+    X3(1:S(1)-1,:,:)=X(2:S(1),:,:);
+    X3(S(1),:,:)=X(S(1),:,:);
+    dx=(X3-X2)/ Step/2;
+    dx(1,:,:)=dx(2,:,:);
+    dx(S(1),:,:)=dx(S(1)-1,:,:);
+    ddx=Diff(dx,dim,Step);
+    dx(1,:,:)=dx(2,:,:)-(ddx(2,:,:)+ddx(2,:,:)+ddx(2,:,:))/3* Step*2;
+    dx(S(1),:,:)=dx(S(1)-1,:,:)+ddx(S(1)-1,:,:)* Step*2;
 else
     X2=zeros(size(X),'like',X);
-    X2(:,:,2:S(3))=X(:,:,1:S(3)-1);
-    dx=(X-X2)/0.025;
+    X3=zeros(size(X),'like',X);
+    X2(:,:,2:S(1))=X(:,:,1:S(1)-1);
+    X2(:,:,1)=X(:,:,1);
+    X3(:,:,1:S(1)-1)=X(:,:,2:S(1));
+    X3(:,:,S(1))=X(:,:,S(1));
+    dx=(X3-X2)/ Step/2;
+    dx(:,:,1)=dx(:,:,2);
+    dx(:,:,S(1))=dx(:,:,S(1)-1);
+    ddx=Diff(dx,dim,Step);
+    dx(:,:,1)=dx(:,:,2)-ddx(:,:,2)* Step*2;
+    dx(:,:,S(1))=dx(:,:,S(1)-1)+ddx(:,:,S(1)-1)* Step*2;
 
 end
 end
@@ -455,6 +550,38 @@ X8(:,:, 1:L-4)=X(:,:, 5:L);
 X8(:,:, L-3:L)=X(:,:, L-3:L);
 RHO=(X1+X2+X3+X4+X5+X6+X7+X8+X)/9;
 
+end
+function box(ax,ay,w)
+% Center point is at coordinate [ax ay az].
+%ax = 0;  ay = 0;
+
+% Full-width of each side of cube.
+%w = 0.01;
+
+% For readability.
+h = w;
+az = -h;
+patch_args = { 'FaceColor', 'b', 'FaceAlpha', 1 };
+
+% Side #1 of 6.
+patch( 'XData', ax+[-h -h  h  h], 'YData', ay+[-h  h  h -h], 'ZData', az+[-h -h -h -h], patch_args{:} )
+%daspect( [1 1 1] )  % 1:1:1 aspect ratio.
+%hold on
+% Side #2 of 6.
+patch( 'XData', ax+[-h -h  h  h], 'YData', ay+[-h  h  h -h], 'ZData', az+[ h  h  h  h], patch_args{:} )
+% Side #3 of 6.
+patch( 'XData', ax+[-h -h  h  h], 'YData', ay+[ h  h  h  h], 'ZData', az+[-h  h  h -h], patch_args{:} )
+% Side #4 of 6.
+patch( 'XData', ax+[-h -h  h  h], 'YData', ay+[-h -h -h -h], 'ZData', az+[-h  h  h -h], patch_args{:} )
+% Side #5 of 6.
+patch( 'XData', ax+[ h  h  h  h], 'YData', ay+[-h -h  h  h], 'ZData', az+[-h  h  h -h], patch_args{:} )
+% Side #6 of 6.
+patch( 'XData', ax+[-h -h -h -h], 'YData', ay+[-h -h  h  h], 'ZData', az+[-h  h  h -h], patch_args{:} )
+
+% Red dot in middle.
+%scatter3( ax, ay, az, 'or', 'filled', 'SizeData', 150 )
+
+%hold off
 end
 
 
